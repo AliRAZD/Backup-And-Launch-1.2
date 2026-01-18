@@ -128,6 +128,8 @@ $maxBackups = 2
 $config = Load-Config
 
 
+
+
 if ($null -eq $config) {
     
     $folderDialog = New-Object System.Windows.Forms.FolderBrowserDialog
@@ -212,43 +214,54 @@ function Backup-FileWithProgress {
         [System.Windows.Forms.Label]$label
     )
 
-    if (Test-Path $sourceFile) {
-        try {
-            $fileName = [System.IO.Path]::GetFileNameWithoutExtension($sourceFile)
-            $fileExtension = [System.IO.Path]::GetExtension($sourceFile)
-            $backupFile = "$backupFolder\$fileName-$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss')$fileExtension"
+    if (-not (Test-Path $sourceFile)) {
+        Log-Message -level "WARNING" -message "The file does not exist: $sourceFile"
+        return
+    }
 
-            
-            $progressBar.PerformStep()
+    try {
+        $fileName = [System.IO.Path]::GetFileNameWithoutExtension($sourceFile)
+        $fileExtension = [System.IO.Path]::GetExtension($sourceFile)
+        $timestamp = Get-Date -Format 'yyyy-MM-dd_HH-mm-ss'
+        $backupFileName = "$fileName-$timestamp$fileExtension"
+        $backupFilePath = Join-Path $backupFolder $backupFileName
 
-            
-            $percentage = [math]::Round(($progressBar.Value / $progressBar.Maximum) * 100, 2)
-            $label.Text = "Backup Progress: $percentage% - Copying: $fileName"
+        # Aktualizacja labela przed kopiowaniem
+        $label.Text = "Backing up: $fileName"
+        [System.Windows.Forms.Application]::DoEvents()
 
-            
-            Copy-Item -Path $sourceFile -Destination $backupFile -Force
-            Log-Message -level "INFO" -message "The file has been backed up: $sourceFile to $backupFile"
-            
-            
-            $backupFiles = Get-ChildItem -Path $backupFolder -Filter "$fileName*$fileExtension" | Sort-Object CreationTime
-            if ($backupFiles.Count -gt $maxBackups) {
-                $filesToRemove = $backupFiles | Select-Object -First ($backupFiles.Count - $maxBackups)
-                foreach ($fileToRemove in $filesToRemove) {
-                    try {
-                        Log-Message -level "INFO" -message "Deleting the oldest backup file: $($fileToRemove.FullName)"
-                        Remove-Item $fileToRemove.FullName -Force
-                    } catch {
-                        Log-Message -level "ERROR" -message "File deletion error: $($fileToRemove.FullName). Details: $_"
-                    }
+        # Kopiowanie pliku
+        Copy-Item -Path $sourceFile -Destination $backupFilePath -Force
+        Log-Message -level "INFO" -message "The file has been backed up: $sourceFile to $backupFilePath"
+
+        # Aktualizacja paska postępu
+        $progressBar.PerformStep()
+        $percentage = [math]::Round(($progressBar.Value / $progressBar.Maximum) * 100, 2)
+        $label.Text = "Backup Progress: $percentage% - Last file: $fileName"
+
+        # Pobranie wszystkich istniejących kopii tego pliku (dokładny wzorzec)
+        $backupFiles = Get-ChildItem -Path $backupFolder -Filter "$fileName-*$fileExtension" |
+                       Sort-Object CreationTime
+
+        # Usuwanie najstarszych, jeśli jest ich za dużo
+        if ($backupFiles.Count -gt $maxBackups) {
+            $filesToRemove = $backupFiles | Select-Object -First ($backupFiles.Count - $maxBackups)
+            foreach ($fileToRemove in $filesToRemove) {
+                try {
+                    Remove-Item $fileToRemove.FullName -Force
+                    Log-Message -level "INFO" -message "Deleted old backup: $($fileToRemove.FullName)"
+                } catch {
+                    Log-Message -level "ERROR" -message "Failed to delete old backup: $($fileToRemove.FullName). Details: $_"
                 }
             }
-        } catch {
-            Log-Message -level "ERROR" -message "File backup error: $sourceFile. Details: $_"
         }
-    } else {
-        Log-Message -level "WARNING" -message "The file does not exist: $sourceFile"
+
+    } catch {
+        Log-Message -level "ERROR" -message "File backup error: $sourceFile. Details: $_"
     }
 }
+
+
 
 
 $form = New-Object System.Windows.Forms.Form
