@@ -56,14 +56,12 @@ function Show-SelectedFilesDialog {
         [array]$files
     )
 
-    
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "Selected Files for Backup"
     $form.Width = 400
     $form.Height = 300
     $form.StartPosition = "CenterScreen"
 
-    
     $fileListBox = New-Object System.Windows.Forms.ListBox
     $fileListBox.Width = 350
     $fileListBox.Height = 200
@@ -71,22 +69,20 @@ function Show-SelectedFilesDialog {
     $fileListBox.Left = 20
     $fileListBox.SelectionMode = [System.Windows.Forms.SelectionMode]::MultiExtended
     $fileListBox.Items.AddRange($files)
-	
-	$removeButton = New-Object System.Windows.Forms.Button
+
+    $removeButton = New-Object System.Windows.Forms.Button
     $removeButton.Text = "Remove Selected"
     $removeButton.Width = 110
     $removeButton.Top = 230
     $removeButton.Left = 250
     $removeButton.Add_Click({
-    $selectedItems = $fileListBox.SelectedItems
-    foreach ($item in $selectedItems) {
-        $fileListBox.Items.Remove($item)
-    }
-})
-$form.Controls.Add($removeButton)
+        $selectedItems = @($fileListBox.SelectedItems) # <- wymusz tablicę
+        foreach ($item in $selectedItems) {
+            $fileListBox.Items.Remove($item)
+        }
+    })
+    $form.Controls.Add($removeButton)
 
-
-    
     $addButton = New-Object System.Windows.Forms.Button
     $addButton.Text = "Add Files"
     $addButton.Width = 75
@@ -99,27 +95,29 @@ $form.Controls.Add($removeButton)
         }
     })
 
-    
     $okButton = New-Object System.Windows.Forms.Button
     $okButton.Text = "OK"
     $okButton.Width = 75
     $okButton.Top = 230
     $okButton.Left = 150
-    $okButton.Add_Click({
-        $form.Close()
-    })
+    $okButton.Add_Click({ $form.DialogResult = [System.Windows.Forms.DialogResult]::OK; $form.Close() })
 
-    
     $form.Controls.Add($fileListBox)
     $form.Controls.Add($addButton)
     $form.Controls.Add($okButton)
 
-    
-    $form.ShowDialog()
+    if ($form.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+        # KONIECZNIE rzutujemy na zwykłą tablicę stringów
+        $result = @()
+        foreach ($item in $fileListBox.Items) {
+            $result += $item.ToString()
+        }
+        return $result
+    }
 
-    
-    return $fileListBox.Items
+    return @()
 }
+
 
 
 $maxBackups = 2
@@ -302,6 +300,7 @@ $form.Close()
 
 
 Start-Process $appPath
+
 
 
 
